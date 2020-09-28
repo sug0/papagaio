@@ -1,23 +1,23 @@
 use std::collections::HashMap;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write, BufWriter};
 
 use permutation::permutation;
 use unicode_normalization::UnicodeNormalization;
 
 #[derive(Clone, Debug)]
 struct Stats {
-    of: HashMap<char, Stat>,
+    of: HashMap<String, Stat>,
 }
 
 #[derive(Clone, Debug)]
 struct Stat {
-    next: HashMap<char, i32>,
+    next: HashMap<String, i32>,
 }
 
 #[derive(Clone, Debug)]
 struct Usage<'a> {
-    current: char,
-    usage: &'a HashMap<char, Vec<char>>,
+    current: String,
+    usage: &'a HashMap<String, Vec<String>>,
 }
 
 fn main() {
@@ -28,25 +28,43 @@ fn main() {
     let usage = determine_highest_usage(&stats);
 
     // make up some random gibberish
-    let sentence: String = Usage::new('x', &usage)
-        .take(100)
-        .collect();
+    let sentence = Usage::new("A".into(), &usage)
+        .take(100);
 
-    println!("{}", sentence);
+    write_sentence(sentence)
+        .expect("failed to write sentence")
 }
 
-fn determine_highest_usage(stats: &Stats) -> HashMap<char, Vec<char>> {
+fn write_sentence<I>(sentence: I) -> io::Result<()>
+where
+    I: Iterator,
+    <I as Iterator>::Item: AsRef<[u8]>,
+{
+    let stdout = io::stdout();
+    let stdout_lock = stdout.lock();
+    let mut writer = BufWriter::new(stdout_lock);
+
+    for word in sentence {
+        writer.write(word.as_ref())?;
+        writer.write(b" ")?;
+    }
+
+    writer.write(b"\n")?;
+    writer.flush()
+}
+
+fn determine_highest_usage(stats: &Stats) -> HashMap<String, Vec<String>> {
     let mut usage = HashMap::new();
-    for (ch, neighbors) in stats.of.iter() {
+    for (word, neighbors) in stats.of.iter() {
         let mut numbers = Vec::new();
-        let mut chars = Vec::new();
+        let mut words = Vec::new();
         for (neigh, number) in neighbors.next.iter() {
             numbers.push(*number);
-            chars.push(*neigh);
+            words.push(neigh.clone());
         }
         let perm = permutation::sort(numbers);
-        let ordered_chars = perm.apply_slice(chars);
-        usage.insert(*ch, ordered_chars);
+        let ordered_words = perm.apply_slice(words);
+        usage.insert(word.clone(), ordered_words);
     }
     usage
 }
@@ -59,17 +77,20 @@ fn read_stats() -> io::Result<Stats> {
     let mut stats = Stats::new();
 
     for line in reader.lines() {
-        let transformed: String = line?
-            .chars()
-            .map(normalize)
-            .collect();
+        let line = line?;
 
-        let ch_fst = transformed.chars();
-        let ch_snd = transformed.chars();
+        let w_fst = line.split_whitespace();
+        let w_snd = line.split_whitespace().cycle().skip(1);
 
-        let zipped = ch_fst.zip(ch_snd.cycle().skip(1));
-
-        for (fst, snd) in zipped {
+        for (fst, snd) in w_fst.zip(w_snd) {
+            let fst: String = fst
+                .chars()
+                .map(normalize)
+                .collect();
+            let snd: String = snd
+                .chars()
+                .map(normalize)
+                .collect();
             stats.update(fst, snd);
         }
     }
@@ -98,33 +119,39 @@ impl Stats {
         Stats { of: HashMap::new() }
     }
 
-    fn update(&mut self, ch: char, neigh: char) {
-        let stat = self.of.entry(ch).or_insert_with(Stat::new);
+    fn update(&mut self, word: String, neigh: String) {
+        let stat = self.of.entry(word).or_insert_with(Stat::new);
         let number = stat.next.entry(neigh).or_insert(0);
         *number += 1;
     }
 }
 
 impl<'a> Usage<'a> {
-    fn new(first: char, usage: &'a HashMap<char, Vec<char>>) -> Self {
-        Usage { current: normalize(first), usage }
+    fn new(first: String, usage: &'a HashMap<String, Vec<String>>) -> Self {
+        Usage {
+            usage,
+            current: first
+                .chars()
+                .map(normalize)
+                .collect(),
+        }
     }
 }
 
 impl Iterator for Usage<'_> {
-    type Item = char;
+    type Item = String;
 
-    fn next(&mut self) -> Option<char> {
+    fn next(&mut self) -> Option<Self::Item> {
         let percent: f32 = loop {
             let x = rand::random();
-            if x >= 0.9 {
+            if x >= 0.75 {
                 break x;
             }
         };
         let candidates = self.usage.get(&self.current)?;
         let char_picked = (percent * (candidates.len() as f32)) as usize;
-        let char_picked = candidates[char_picked];
-        self.current = char_picked;
-        Some(char_picked)
+        let char_picked = &candidates[char_picked];
+        self.current = char_picked.clone();
+        Some(char_picked.clone())
     }
 }
