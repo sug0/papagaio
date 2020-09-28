@@ -1,0 +1,10 @@
+[package]
+name = "text-neigh"
+version = "0.1.0"
+authors = ["Tiago Carvalho <sugoiuguu@tfwno.gf>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.7.3"
+permutation = "0.2.5"
+unicode-normalization = "0.1.13"
