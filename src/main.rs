@@ -16,8 +16,20 @@ struct Stat {
 
 #[derive(Clone, Debug)]
 struct Usage<'a> {
+    threshold: f32,
     current: String,
     usage: &'a HashMap<String, Vec<String>>,
+}
+
+enum Arguments {
+    None,
+    Print,
+    Threshold(f32),
+}
+
+enum ArgumentKind {
+    Flag,
+    Threshold,
 }
 
 fn main() {
@@ -27,20 +39,43 @@ fn main() {
     // determine highest usage for each entry
     let usage = determine_highest_usage(&stats);
 
-    // print graph if arg is -p
-    let args: Vec<_> = std::env::args().collect();
+    // parse arguments
+    let args = parse_arguments()
+        .expect("failed to parse arguments");
 
-    if args.len() > 1 && &args[1] == "-p" {
-        println!("{:#?}", usage);
-        return;
-    }
+    let thres = match args {
+        Arguments::None => 0.75,
+        Arguments::Print => {
+            println!("{:#?}", usage);
+            return;
+        },
+        Arguments::Threshold(thres) => thres,
+    };
 
     // make up some random gibberish
-    let sentence = Usage::new("A".into(), &usage)
+    let sentence = Usage::new("A".into(), thres, &usage)
         .take(100);
 
     write_sentence(sentence)
         .expect("failed to write sentence")
+}
+
+fn parse_arguments() -> Result<Arguments, Box<dyn std::error::Error>> {
+    let mut kind = ArgumentKind::Flag;
+    for arg in std::env::args().skip(1) {
+        match kind {
+            ArgumentKind::Flag => match arg.as_ref() {
+                "-p" => return Ok(Arguments::Print),
+                "-t" => kind = ArgumentKind::Threshold,
+                _ => return Err(format!("invalid flag: {}", arg).into())
+            },
+            ArgumentKind::Threshold => {
+                let t: f32 = arg.parse()?;
+                return Ok(Arguments::Threshold(t));
+            },
+        }
+    }
+    Ok(Arguments::None)
 }
 
 fn write_sentence<I>(sentence: I) -> io::Result<()>
@@ -135,9 +170,15 @@ impl Stats {
 }
 
 impl<'a> Usage<'a> {
-    fn new(first: String, usage: &'a HashMap<String, Vec<String>>) -> Self {
+    fn new(first: String, threshold: f32, usage: &'a HashMap<String, Vec<String>>) -> Self {
+        let threshold = if threshold < 0.0 || threshold > 1.0 {
+            0.75
+        } else {
+            threshold
+        };
         Usage {
             usage,
+            threshold,
             current: first
                 .chars()
                 .map(normalize)
@@ -153,7 +194,7 @@ impl Iterator for Usage<'_> {
         loop {
             let percent: f32 = loop {
                 let x = rand::random();
-                if x >= 0.75 {
+                if x >= self.threshold {
                     break x;
                 }
             };
