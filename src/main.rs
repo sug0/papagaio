@@ -27,6 +27,14 @@ fn main() {
     // determine highest usage for each entry
     let usage = determine_highest_usage(&stats);
 
+    // print graph if arg is -p
+    let args: Vec<_> = std::env::args().collect();
+
+    if args.len() > 1 && &args[1] == "-p" {
+        println!("{:#?}", usage);
+        return;
+    }
+
     // make up some random gibberish
     let sentence = Usage::new("A".into(), &usage)
         .take(100);
