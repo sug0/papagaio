@@ -33,16 +33,16 @@ enum ArgumentKind {
 }
 
 fn main() {
-    let stats = read_stats()
-        .expect("failed to read stats");
-
-    // determine highest usage for each entry
-    let usage = determine_highest_usage(&stats);
-
     // parse arguments
     let args = parse_arguments()
         .expect("failed to parse arguments");
 
+    // determine highest usage for each entry
+    let stats = read_stats()
+        .expect("failed to read stats");
+    let usage = determine_highest_usage(&stats);
+
+    // handle args...
     let thres = match args {
         Arguments::None => 0.75,
         Arguments::Print => {
