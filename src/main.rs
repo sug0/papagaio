@@ -21,14 +21,20 @@ struct Usage<'a> {
     usage: &'a HashMap<String, Vec<String>>,
 }
 
+struct Flags {
+    thres: f32,
+    words: usize,
+}
+
 enum Arguments {
     None,
     Print,
-    Threshold(f32),
+    Values(Flags),
 }
 
 enum ArgumentKind {
     Flag,
+    Words,
     Threshold,
 }
 
@@ -43,18 +49,18 @@ fn main() {
     let usage = determine_highest_usage(&stats);
 
     // handle args...
-    let thres = match args {
-        Arguments::None => 0.75,
+    let (thres, words) = match args {
+        Arguments::None => (0.75, 100),
+        Arguments::Values(Flags { thres, words }) => (thres, words),
         Arguments::Print => {
             println!("{:#?}", usage);
             return;
         },
-        Arguments::Threshold(thres) => thres,
     };
 
     // make up some random gibberish
     let sentence = Usage::new("A".into(), thres, &usage)
-        .take(100);
+        .take(words);
 
     write_sentence(sentence)
         .expect("failed to write sentence")
@@ -62,20 +68,35 @@ fn main() {
 
 fn parse_arguments() -> Result<Arguments, Box<dyn std::error::Error>> {
     let mut kind = ArgumentKind::Flag;
+    let mut args = None;
     for arg in std::env::args().skip(1) {
         match kind {
             ArgumentKind::Flag => match arg.as_ref() {
                 "-p" => return Ok(Arguments::Print),
                 "-t" => kind = ArgumentKind::Threshold,
+                "-w" => kind = ArgumentKind::Words,
                 _ => return Err(format!("invalid flag: {}", arg).into())
             },
             ArgumentKind::Threshold => {
-                let t: f32 = arg.parse()?;
-                return Ok(Arguments::Threshold(t));
+                match args {
+                    None => args = Some(Flags { thres: arg.parse()?, words: 100 }),
+                    Some(ref mut f) => f.thres = arg.parse()?,
+                };
+                kind = ArgumentKind::Flag;
+            },
+            ArgumentKind::Words => {
+                match args {
+                    None => args = Some(Flags { thres: 0.75, words: arg.parse()? }),
+                    Some(ref mut f) => f.words = arg.parse()?,
+                };
+                kind = ArgumentKind::Flag;
             },
         }
     }
-    Ok(Arguments::None)
+    Ok(match args {
+        None => Arguments::None,
+        Some(flags) => Arguments::Values(flags),
+    })
 }
 
 fn write_sentence<I>(sentence: I) -> io::Result<()>
