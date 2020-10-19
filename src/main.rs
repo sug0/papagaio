@@ -213,11 +213,13 @@ impl Iterator for Usage<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            let mut it = 0;
             let percent: f32 = loop {
                 let x = rand::random();
-                if x >= self.threshold {
+                if x >= self.threshold || it > 30 {
                     break x;
                 }
+                it += 1;
             };
             let candidates = self.usage.get(&self.current)?;
             let char_picked = (percent * (candidates.len() as f32)) as usize;
