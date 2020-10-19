@@ -225,7 +225,8 @@ impl Iterator for Usage<'_> {
             if char_picked == &self.current {
                 continue;
             }
-            self.current = char_picked.clone();
+            self.current.clear();
+            self.current.insert_str(0, &char_picked);
             break Some(char_picked.clone());
         }
     }
