@@ -217,7 +217,7 @@ impl Iterator for Usage<'_> {
             let mut it_percent = 0;
             let percent: f32 = loop {
                 let x = rand::random();
-                if x >= self.threshold || it_percent == 30 {
+                if x >= self.threshold || it_percent >= 30 {
                     break x;
                 }
                 it_percent += 1;
@@ -225,7 +225,7 @@ impl Iterator for Usage<'_> {
             let candidates = self.usage.get(&self.current)?;
             let char_picked = (percent * (candidates.len() as f32)) as usize;
             let char_picked = &candidates[char_picked];
-            if char_picked == &self.current || it_word != 30 {
+            if char_picked == &self.current || it_word < 30 {
                 it_word += 1;
                 continue;
             }
