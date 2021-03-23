@@ -39,9 +39,19 @@ enum ArgumentKind {
 }
 
 fn main() {
+    // fetch arguments
+    let mut args = std::env::args();
+    let prog_name = args.next().unwrap();
+
     // parse arguments
-    let args = parse_arguments()
-        .expect("failed to parse arguments");
+    let args = match parse_arguments(args) {
+        Ok(args) => args,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            usage(&prog_name);
+            return;
+        },
+    };
 
     // determine highest usage for each entry
     let stats = read_stats()
@@ -59,17 +69,21 @@ fn main() {
     };
 
     // make up some random gibberish
-    let sentence = Usage::new("A".into(), thres, &usage)
+    let sentence = Usage::new(thres, &usage)
         .take(words);
 
     write_sentence(sentence)
         .expect("failed to write sentence")
 }
 
-fn parse_arguments() -> Result<Arguments, Box<dyn std::error::Error>> {
+fn usage(prog_name: &str) {
+    println!("usage: {} [-p <print-words-graph>] [-t <threshold>] [-w <words>]", prog_name);
+}
+
+fn parse_arguments(it: impl Iterator<Item = String>) -> Result<Arguments, Box<dyn std::error::Error>> {
     let mut kind = ArgumentKind::Flag;
     let mut args = None;
-    for arg in std::env::args().skip(1) {
+    for arg in it {
         match kind {
             ArgumentKind::Flag => match arg.as_ref() {
                 "-p" => return Ok(Arguments::Print),
@@ -191,12 +205,26 @@ impl Stats {
 }
 
 impl<'a> Usage<'a> {
-    fn new(first: String, threshold: f32, usage: &'a HashMap<String, Vec<String>>) -> Self {
+    fn new(threshold: f32, usage: &'a HashMap<String, Vec<String>>) -> Self {
         let threshold = if threshold < 0.0 || threshold > 1.0 {
             0.75
         } else {
             threshold
         };
+        let mut keys = usage.keys();
+        let mut rounds = (threshold * 10.0) as i32;
+        let mut first = String::from("A");
+        loop {
+            match keys.next() {
+                Some(_) if rounds == 0 => break,
+                Some(k) => {
+                    first.clear();
+                    first.push_str(k);
+                },
+                None => break,
+            }
+            rounds -= 1;
+        }
         Usage {
             usage,
             threshold,
@@ -230,7 +258,7 @@ impl Iterator for Usage<'_> {
                 continue;
             }
             self.current.clear();
-            self.current.insert_str(0, &char_picked);
+            self.current.push_str(&char_picked);
             break Some(char_picked.clone());
         }
     }
